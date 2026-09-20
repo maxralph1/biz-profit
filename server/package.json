@@ -1,15 +1,40 @@
 {
-  "name": "server",
+  "name": "BizProfit-server",
   "version": "0.0.1",
   "description": "The server side for BizProfit; a businesses funds management tracker",
   "license": "ISC",
   "author": "Maximillian Raphaels",
-  "type": "commonjs",
+  "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "no-test": "echo \"Error: no test specified\" && exit 1",
+    "test-node": "ENV=test node --test tests/",
+    "test": "ENV=test NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
+    "db-migrate": "node commands/migrate.js",
+    "db-seed": "node commands/seed.js",
+    "db-migrate-seed": "node commands/migrate.js && node commands/seed.js",
+    "build": "echo \"no build needed\"",
+    "start": "node --env-file=.env --watch index.js"
   },
   "dependencies": {
-    "express": "^5.2.1"
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "date-fns": "^4.4.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-async-handler": "^1.2.0",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "morgan": "^1.12.0",
+    "nodemailer": "^10.0.10",
+    "pg": "^8.23.0",
+    "rotating-file-stream": "^3.2.10",
+    "serverless-http": "^4.0.0"
+  },
+  "devDependencies": {
+    "jest": "^30.5.2",
+    "supertest": "^7.2.2"
   }
 }

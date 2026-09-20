@@ -1,7 +1,9 @@
 {
-  "name": "client",
+  "name": "BizProfit-client",
+  "description": "The client side for BizProfit; a businesses funds management tracker",
+  "author": "Maximillian Raphaels",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,8 +12,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "dayjs": "^1.11.23",
+    "jwt-decode": "^4.0.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "serve": "^14.2.6"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
