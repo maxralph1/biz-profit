@@ -18,6 +18,7 @@ import router from './routes/api.js';
 const PORT = process.env.PORT || 5000; 
 
 app.use(helmet()); 
+app.set('trust proxy', 1);
 
 const IS_TEST = process.env.ENV === 'test';
 // console.log(IS_TEST, process.env.ENV, "IS_TEST");

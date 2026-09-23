@@ -15,7 +15,7 @@ export async function loadVisibleBusiness(businessId, user) {
          WHERE bu.business_id = b.id AND bu.user_id = $2
        ) AS connected
      FROM businesses b
-     WHERE b.id = $1`,
+     WHERE b.id = $1 AND b.deleted_at IS NULL`,
     [businessId, user.id]
   );
 
@@ -30,8 +30,7 @@ export async function loadVisibleBusiness(businessId, user) {
 }
 
 /**
- * Stricter check for mutating endpoints: site admin, business admin, or
- * business owner. Ordinary members get the same 404 as strangers.
+ * Stricter check for mutating endpoints: site admin, business admin, or business owner. Ordinary members get the same 404 as strangers.
  */
 export async function loadManageableBusiness(businessId, user) {
   const { rows } = await dbPool.query(
@@ -41,7 +40,7 @@ export async function loadManageableBusiness(businessId, user) {
      FROM businesses b
      LEFT JOIN business_users bu
        ON bu.business_id = b.id AND bu.user_id = $2
-     WHERE b.id = $1`,
+     WHERE b.id = $1 AND b.deleted_at IS NULL`,
     [businessId, user.id]
   );
 

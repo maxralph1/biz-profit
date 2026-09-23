@@ -66,7 +66,8 @@ const User = `
   password_reset_token TEXT,
   password_reset_token_expires_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP, 
+  deleted_at TIMESTAMPTZ, 
 
   CONSTRAINT chk_users_role
     CHECK (role IN ('user', 'admin'))

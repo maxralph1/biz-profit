@@ -1,4 +1,5 @@
 import asyncHandler from 'express-async-handler';
+import dbClient from '../../../config/db/dbClient.js';
 import dbPool from '../../../config/db/dbPool.js';
 import ApiError from '../../../utils/errors/ApiError.js';
 import resolvePagination from '../../../utils/pagination/resolvePagination.js';
@@ -8,6 +9,8 @@ import createBusinessMemberRequest from '../requests/createBusinessMemberRequest
 import updateBusinessMemberRequest from '../requests/updateBusinessMemberRequest.js';
 import { loadVisibleBusiness, loadManageableBusiness } from '../../../utils/business/access.js';
 import parseId from '../../../utils/http/parseId.js';
+import withTransaction from '../../../utils/db/withTransaction.js';
+import writeAudit from '../../../utils/audit/writeAudit.js';
 
 /**
 function parsePositiveInt(raw, label) {
@@ -35,13 +38,16 @@ const getBusinessMembers = asyncHandler(async (req, res) => {
 
   const [countResult, dataResult] = await Promise.all([
     dbPool.query(
-      'SELECT COUNT(*)::int AS total FROM business_users WHERE business_id = $1',
+      `SELECT COUNT(*)::int AS total 
+      FROM business_users bu 
+      JOIN users u ON u.id = bu.user_id AND u.deleted_at IS NULL 
+      WHERE bu.business_id = $1`,
       [businessId]
     ),
     dbPool.query(
       `SELECT ${BUSINESS_USER_PUBLIC_COLUMNS}
        FROM business_users bu
-       JOIN users u ON u.id = bu.user_id
+       JOIN users u ON u.id = bu.user_id AND u.deleted_at IS NULL 
        WHERE bu.business_id = $1
        ORDER BY bu.id ASC
        LIMIT $2 OFFSET $3`,
@@ -68,7 +74,16 @@ const addBusinessMember = asyncHandler(async (req, res) => {
   await loadManageableBusiness(businessId, req.user);
 
   const data = createBusinessMemberRequest(req.body);
+  
+  const { rows: targetRows } = await dbPool.query(
+    'SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL',
+    [data.user_id]
+  );
+  if (targetRows.length === 0) {
+    throw new ApiError(404, 'User not found');
+  }
 
+  /**
   let insertedId;
   try {
     const result = await dbPool.query(
@@ -95,8 +110,45 @@ const addBusinessMember = asyncHandler(async (req, res) => {
      WHERE bu.id = $1`,
     [insertedId]
   );
+  */
 
-  res.status(201).json({ data: rows[0] });
+  const created = await withTransaction(async (dbClient) => {
+    let result; 
+    try {
+      result = await dbClient.query(
+        `INSERT INTO business_users (business_id, user_id, role) 
+        VALUES ($1, $2, $3) 
+        RETURNING id`, 
+        [businessId, data.user_id, data.role]
+      )
+    } catch (error) {
+      if (error.code === '23505' && error.constraint === 'uq_business_user') {
+        throw new ApiError(409, 'User is already a member of this business');
+      }
+      throw error;
+    }
+    const membershipId = result.rows[0].id; 
+
+    await writeAudit(dbClient, {
+      actor_id: req.user.id, 
+      subject_type: 'business_user', 
+      subject_id: membershipId, 
+      business_id: businessId, 
+      action: 'member_added', 
+      payload: { user_id: data.user_id, eolw: data.role },
+    });
+
+    const { rows } = await dbClient.query(
+      `SELECT ${BUSINESS_USER_PUBLIC_COLUMNS}
+       FROM business_users bu
+       JOIN users u ON u.id = bu.user_id
+       WHERE bu.id = $1`,
+      [membershipId]
+    );
+    return rows[0];
+  });
+
+  res.status(201).json({ data: created });
 });
 
 /**
@@ -114,27 +166,50 @@ const updateBusinessMember = asyncHandler(async (req, res) => {
 
   const data = updateBusinessMemberRequest(req.body);
 
-  const result = await dbPool.query(
-    `UPDATE business_users
-     SET role = $1
-     WHERE business_id = $2 AND user_id = $3
-     RETURNING id`,
-    [data.role, businessId, userId]
-  );
+  const updated = await withTransaction(async (dbClient) => {
+    const before = await dbClient.query(
+      'SELECT id, role FROM business_users WHERE business_id = $1 AND user_id = $2', 
+      [businessId, userId]
+    ); 
+    if (before.rows.length === 0) {
+      throw new ApiError(404, 'Business member not found');
+    }
+    const previousRole = before.rows[0].role;
 
-  if (result.rows.length === 0) {
-    throw new ApiError(404, 'Business member not found');
-  }
+    const result = await dbClient.query(
+      `UPDATE business_users 
+      SET role = $1 
+      WHERE business_id = $2 AND user_id = $3 
+      RETURNING id`, 
+      [data.role, businessId, userId]
+    ); 
+    const membershipId = result.rows[0].id;
 
-  const { rows } = await dbPool.query(
-    `SELECT ${BUSINESS_USER_PUBLIC_COLUMNS}
-     FROM business_users bu
-     JOIN users u ON u.id = bu.user_id
-     WHERE bu.id = $1`,
-    [result.rows[0].id]
-  );
+    if (previousRole !== data.role) {
+      await writeAudit(dbClient, {
+        actor_id: req.user.id, 
+        subject_type: 'business_user', 
+        subject_id: membershipId, 
+        business_id: businessId, 
+        action: 'member_role_changed', 
+        payload: {
+          user_id: userId, 
+          old_role:previousRole, 
+          new_role: data.role
+        },
+      });
+    }
+    const { rows } = await dbClient.query(
+      `SELECT ${BUSINESS_USER_PUBLIC_COLUMNS}
+       FROM business_users bu
+       JOIN users u ON u.id = bu.user_id
+       WHERE bu.id = $1`,
+      [membershipId]
+    );
+    return rows[0];
+  });
 
-  res.json({ data: rows[0] });
+  res.json({ data: updated });
 });
 
 /**
@@ -151,15 +226,27 @@ const removeBusinessMember = asyncHandler(async (req, res) => {
   
   await loadManageableBusiness(businessId, req.user);
 
-  const result = await dbPool.query(
-    'DELETE FROM business_users WHERE business_id = $1 AND user_id = $2 RETURNING id',
-    [businessId, userId]
-  );
+  await withTransaction(async (dbClient) => {
+    const result = await dbClient.query(
+      'DELETE FROM business_users WHERE business_id = $1 AND user_id = $2 RETURNING id, role',
+      [businessId, userId]
+    );
+  
+    if (result.rows.length === 0) {
+      throw new ApiError(404, 'Business member not found');
+    }
 
-  if (result.rows.length === 0) {
-    throw new ApiError(404, 'Business member not found');
-  }
-
+    const { id: membershipId, role } = result.rows[0];
+    await writeAudit(dbClient, {
+      actor_id: req.user.id, 
+      subject_type: 'business_user', 
+      subject_id: membershipId, 
+      business_id: businessId, 
+      action: 'member_removed', 
+      payload: { user_id: userId, role },
+    });
+  });
+  
   res.json({ message: 'Business member removed' });
 });
 

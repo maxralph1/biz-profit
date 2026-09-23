@@ -3,7 +3,8 @@ import asyncHandler from 'express-async-handler';
 import jwt from 'jsonwebtoken';
 import dbPool from '../../../../config/db/dbPool.js';
 import ApiError from '../../../../utils/errors/ApiError.js';
-import accessTokenSigning from '../../../../utils/accessTokenSigning.js';
+import accessTokenSigning from '../../../../utils/accessTokenSigning.js'; 
+import writeAuthEvent from '../../../../utils/auth/writeAuthEvent.js';
 
 /**
 * ---------------------------------------------------
@@ -13,6 +14,10 @@ import accessTokenSigning from '../../../../utils/accessTokenSigning.js';
 const refreshToken = asyncHandler(async (req, res) => {
   const token = req.cookies?.jwt;
   if (!token) {
+    await writeAuthEvent(req, {
+      event_type: 'refresh_failed',  
+      metadata: { reason: 'no_cookie' }
+    });
     throw new ApiError(401, 'Authentication required');
   }
 
@@ -20,6 +25,10 @@ const refreshToken = asyncHandler(async (req, res) => {
   try {
     payload = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
   } catch {
+    await writeAuthEvent(req, {
+      event_type: 'refresh_failed',  
+      metadata: { reason: 'invalid_token' }
+    });
     throw new ApiError(403, 'Invalid or expired refresh token');
   }
 
@@ -47,13 +56,17 @@ const refreshToken = asyncHandler(async (req, res) => {
   const { rows } = await dbPool.query(
     `SELECT id, first_name, last_name, username, email, role, country_phone_code, phone_number, password_changed_at
      FROM users
-     WHERE id = $1
+     WHERE id = $1 AND deleted_at IS NULL 
      LIMIT 1`,
     [id]
   );
 
   const user = rows[0];
   if (!user) {
+    await writeAuthEvent(req, {
+      event_type: 'refresh_failed',  
+      metadata: { reason: 'user_gone' }
+    });
     throw new ApiError(401, 'Unauthorized');
   }
 
@@ -62,12 +75,25 @@ const refreshToken = asyncHandler(async (req, res) => {
     const changedAtSec = Math.floor(
       new Date(user.password_changed_at).getTime() / 1000
     );
+    console.log('DBG iat:', payload.iat, 'changedAtSec:', changedAtSec);
+    
     if (payload.iat < changedAtSec) {
+      await writeAuthEvent(req, {
+        user_id: user?.id, 
+        event_type: 'refresh_failed', 
+        metadata: { reason: 'password_changed' }
+      });
       throw new ApiError(401, 'Session invalidated by password change');
     }
   }
-
+  
   const accessToken = accessTokenSigning(user);
+
+  await writeAuthEvent(req, {
+    user_id: user?.id, 
+    event_type: 'refresh_succeeded'
+  });
+  
   res.json({ access_token: accessToken });
 });
 

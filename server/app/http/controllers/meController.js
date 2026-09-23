@@ -1,6 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
+import dbClient from '../../../config/db/dbClient.js';
 import dbPool from '../../../config/db/dbPool.js';
 import ApiError from '../../../utils/errors/ApiError.js';
 import { BCRYPT_ROUNDS } from '../../../utils/constants.js';
@@ -9,11 +10,12 @@ import { UNIQUE_VIOLATIONS } from '../requests/createUserRequest.js';
 import USER_PUBLIC_COLUMNS from '../resources/userResource.js';
 import sendMail from '../../mails/sendMail.js';
 import verificationMail from '../../mails/templates/verificationMail.js';
-
 import accessTokenSigning from '../../../utils/accessTokenSigning.js';
 import refreshTokenSigning from '../../../utils/refreshTokenSigning.js';
 import { REFRESH_COOKIE_OPTIONS } from '../../../utils/auth/refreshCookie.js';
 import updatePasswordRequest from '../requests/updatePasswordRequest.js';
+import withTransaction from '../../../utils/db/withTransaction.js';
+import writeAudit from '../../../utils/audit/writeAudit.js';
 
 const VERIFICATION_TTL_MS = 10 * 60 * 1000;
 
@@ -28,14 +30,10 @@ function generateCode() {
 */
 const getMe = asyncHandler(async (req, res) => {
   const { rows } = await dbPool.query(
-    `SELECT ${USER_PUBLIC_COLUMNS} FROM users WHERE id = $1`,
+    `SELECT ${USER_PUBLIC_COLUMNS} FROM users WHERE id = $1 AND deleted_at IS NULL`,
     [req.user.id]
   );
-
-  if (rows.length === 0) {
-    /** Signed token, but no such user. Treat as auth failure. */
-    throw new ApiError(401, 'Account no longer exists');
-  }
+  if (rows.length === 0) throw new ApiError(401, 'Account no longer exists');
 
   res.json({ data: rows[0] });
 });
@@ -99,21 +97,42 @@ const updateMe = asyncHandler(async (req, res) => {
   const values = fields.map((f) => data[f]);
   values.push(req.user.id);
 
-  let result;
-  try {
-    result = await dbPool.query(
-      `UPDATE users
-       SET ${setClauses.join(', ')}
-       WHERE id = $${values.length}
-       RETURNING ${USER_PUBLIC_COLUMNS}`,
-      values
-    );
-  } catch (error) {
-    if (error.code === '23505') {
-      throw new ApiError(409, UNIQUE_VIOLATIONS[error.constraint] ?? 'Conflict');
+  const updated = await withTransaction(async (dbClient) => {
+    let result;
+    try {
+      result = await dbClient.query(
+        `UPDATE users
+         SET ${setClauses.join(', ')}
+         WHERE id = $${values.length} AND deleted_at IS NULL 
+         RETURNING ${USER_PUBLIC_COLUMNS}`,
+        values
+      );
+    } catch (error) {
+      if (error.code === '23505') {
+        throw new ApiError(409, UNIQUE_VIOLATIONS[error.constraint] ?? 'Conflict');
+      }
+      throw error;
     }
-    throw error;
-  }
+
+    if (result.rows.length === 0) {
+      throw new ApiError(401, 'Account no longer exists.');
+    } 
+
+    const user = result.rows[0]; 
+
+    await writeAudit(dbClient, {
+      actor_id: req.user.id, 
+      subject_type: 'user', 
+      subject_id: user.id, 
+      action: emailChanged ? 'email_changed' : 'updated', 
+      payload: emailChanged 
+                ? { old_email: current.email, 
+                    new_email: data.email } 
+                : { changes: data },
+    });
+
+    return user;
+  });
 
   /** Fire-and-forget-ish: if mail fails, the DB change is already committed. The user can request a new code via the resend endpoint (not built yet). */
   if (emailChanged && verificationCode) {
@@ -121,13 +140,13 @@ const updateMe = asyncHandler(async (req, res) => {
       to: data.email,
       subject: 'Verify your new BizProfit email',
       html: verificationMail({
-        first_name: result.rows[0].first_name,
+        first_name: updated.first_name,
         code: verificationCode,
       }),
     });
   }
 
-  res.json({ data: result.rows[0] });
+  res.json({ data: updated });
 });
 
 /**
@@ -140,7 +159,7 @@ const updatePassword = asyncHandler(async (req, res) => {
   const userId = req.user.id;
 
   const { rows } = await dbPool.query(
-    'SELECT id, password FROM users WHERE id = $1',
+    'SELECT id, password FROM users WHERE id = $1 AND deleted_at IS NULL',
     [userId]
   );
   const user = rows[0];
@@ -160,18 +179,32 @@ const updatePassword = asyncHandler(async (req, res) => {
   const newHash = await bcrypt.hash(data.new_password, BCRYPT_ROUNDS);
 
   /** Setting password_changed_at invalidates every refresh token issued before this moment. The current session gets a fresh token pair in the response, so it isn't logged out. */
-  const { rows: updatedRows } = await dbPool.query(
-    `UPDATE users
-     SET password = $1,
-         password_changed_at = CURRENT_TIMESTAMP,
-         password_reset_token = NULL,
-         password_reset_token_expires_at = NULL
-     WHERE id = $2
-     RETURNING id, username, first_name, last_name, email, role, country_phone_code, phone_number`,
-    [newHash, userId]
-  );
+  const updated = await withTransaction(async (dbClient) => {
+    const result = await dbClient.query(
+      `UPDATE users
+       SET password = $1,
+           password_changed_at = CURRENT_TIMESTAMP,
+           password_reset_token = NULL,
+           password_reset_token_expires_at = NULL
+       WHERE id = $2 AND deleted_at IS NULL 
+       RETURNING id, username, first_name, last_name, email, role, country_phone_code, phone_number`,
+      [newHash, userId]
+    );
 
-  const updated = updatedRows[0];
+    if (result.rows.length === 0) {
+      throw new ApiError(401, 'Account no longer exists.');
+    }
+
+    await writeAudit(dbClient, {
+      actor_id: userId, 
+      subject_type: 'user', 
+      subject_id: userId, 
+      action: 'password_changed'
+    });
+
+    return result.rows[0];
+  });
+  
   const accessToken = accessTokenSigning(updated);
   const refreshToken = refreshTokenSigning(updated);
 

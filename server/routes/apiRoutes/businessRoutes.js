@@ -30,6 +30,10 @@ import {
   deleteTransaction, 
   reverseTransaction
 } from '../../app/http/controllers/transactionController.js';
+import { 
+  getBusinessAuditEvents, 
+  getTransactionAuditEvents 
+} from '../../app/http/controllers/auditEventController.js';
 import {
   getMonthlyTotals,
   createMonthlyTotal,
@@ -62,6 +66,10 @@ businessRouter.post('/:businessId/transactions/:id/reverse', authenticated, reve
 businessRouter.get('/:businessId/transactions/:id', authenticated, getTransaction);
 businessRouter.patch('/:businessId/transactions/:id', authenticated, updateTransaction);
 businessRouter.delete('/:businessId/transactions/:id', authenticated, deleteTransaction);
+
+/** Audit Events */
+businessRouter.get('/:businessId/audit-events', authenticated, getBusinessAuditEvents);
+businessRouter.get('/:businessId/transactions/:id/events', authenticated, getTransactionAuditEvents);
 
 /** Monthly Totals */
 businessRouter.get('/:businessId/monthly-totals', authenticated, getMonthlyTotals);

@@ -352,19 +352,21 @@ describe('DELETE /api/v1/users/:id', () => {
     const id = created.body.data.id;
 
     const res = await request(server).delete(`${BASE}/${id}`).set('Authorization', asAdmin());
-    // expect(res.status).toBe(200);
-    expect(res.status).toBe(204);
-    // expect(res.body.message).toBe('User deleted');
+    expect(res.status).toBe(200);
+    // expect(res.status).toBe(204);
+    expect(res.body.message).toBe('User deleted');
 
     const after = await request(server).get(`${BASE}/${id}`).set('Authorization', asAdmin());
     expect(after.status).toBe(404);
   });
 
+  /**
   it('returns 409 when the user owns a business', async () => {
     const res = await request(server).delete(`${BASE}/1`).set('Authorization', asAdmin()); // ada
     expect(res.status).toBe(409);
     expect(res.body.message).toMatch(/own businesses/i);
   });
+*/
 
   /**
   it('returns 409 when the user has memberships', async () => {
@@ -374,10 +376,25 @@ describe('DELETE /api/v1/users/:id', () => {
   });
   */
 
+  /**
   it('returns 409 when the user has memberships', async () => {
     const res = await request(server).delete(`${BASE}/3`).set('Authorization', asAdmin()); // alan — member of Beta
     expect(res.status).toBe(409);
     expect(res.body.message).toMatch(/members of businesses/i);
+  });
+  */
+
+  it('soft-deletes a user even if they are a member of businesses', async () => {
+    const res = await request(server)
+      .delete(`${BASE}/${ctx.userIds.alan}`)
+      .set('Authorization', asAdmin());
+    expect(res.status).toBe(200);
+    expect(res.body.message).toBe('User deleted');
+  
+    const gone = await request(server)
+      .get(`${BASE}/${ctx.userIds.alan}`)
+      .set('Authorization', asAdmin());
+    expect(gone.status).toBe(404);
   });
 
   it('returns 400 for a non-numeric id', async () => {
@@ -388,5 +405,24 @@ describe('DELETE /api/v1/users/:id', () => {
   it('returns 404 for a missing user', async () => {
     const res = await request(server).delete(`${BASE}/9999`).set('Authorization', asAdmin());
     expect(res.status).toBe(404);
+  }); 
+
+  it('soft-deletes a user even if they own a business', async () => {
+    const res = await request(server)
+      .delete(`${BASE}/${ctx.userIds.ada}`)
+      .set('Authorization', asAdmin());
+    expect(res.status).toBe(200);
+  
+    const gone = await request(server)
+      .get(`${BASE}/${ctx.userIds.ada}`)
+      .set('Authorization', asAdmin());
+    expect(gone.status).toBe(404);
+  }); 
+
+  it('prevents self-delete', async () => {
+    const res = await request(server)
+      .delete(`${BASE}/${ctx.userIds.siteadmin}`)
+      .set('Authorization', asAdmin());
+    expect(res.status).toBe(403);
   });
 });

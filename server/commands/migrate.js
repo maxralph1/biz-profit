@@ -6,6 +6,9 @@ import createBusinessesTable from '../database/migrations/create_businesses_tabl
 import createBusinessUsersTable from '../database/migrations/create_business_users_table.js';
 import createTransactionTypesTable from '../database/migrations/create_transaction_types_table.js';
 import createTransactionsTable from '../database/migrations/create_transactions_table.js';
+import createAuditEventsTable from '../database/migrations/create_audit_events_table.js';
+import addAuditEventsAppendOnlyTrigger from '../database/migrations/add_audit_events_append_only_trigger.js'; 
+import createAuthEventsTable from '../database/migrations/create_auth_events_table.js';
 import createMonthlyTotalsTable from '../database/migrations/create_monthly_totals_table.js';
 
 export default async function migrate() {
@@ -18,6 +21,10 @@ export default async function migrate() {
     await createBusinessUsersTable();
     await createTransactionTypesTable();
     await createTransactionsTable();
+    await createAuditEventsTable(); 
+    await createAuditEventsTable(); 
+    await addAuditEventsAppendOnlyTrigger(); 
+    await createAuthEventsTable();
     await createMonthlyTotalsTable();
 
     console.log('\n');

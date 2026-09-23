@@ -1,4 +1,5 @@
 import asyncHandler from 'express-async-handler';
+import dbClient from '../../../config/db/dbClient.js';
 import dbPool from '../../../config/db/dbPool.js';
 import ApiError from '../../../utils/errors/ApiError.js';
 import parseId from '../../../utils/http/parseId.js';
@@ -8,6 +9,8 @@ import MONTHLY_TOTAL_PUBLIC_COLUMNS from '../resources/monthlyTotalResource.js';
 import createMonthlyTotalRequest from '../requests/createMonthlyTotalRequest.js';
 import updateMonthlyTotalRequest from '../requests/updateMonthlyTotalRequest.js';
 import { loadVisibleBusiness, loadManageableBusiness } from '../../../utils/business/access.js';
+import withTransaction from '../../../utils/db/withTransaction.js';
+import writeAudit from '../../../utils/audit/writeAudit.js';
 
 const UNIQUE_CONSTRAINT = 'uq_monthly_total';
 const DUPLICATE_MSG =
@@ -74,6 +77,7 @@ const createMonthlyTotal = asyncHandler(async (req, res) => {
 
   const data = createMonthlyTotalRequest(req.body);
 
+  /**
   let result;
   try {
     result = await dbPool.query(
@@ -102,6 +106,45 @@ const createMonthlyTotal = asyncHandler(async (req, res) => {
   }
 
   res.status(201).json({ data: result.rows[0] });
+  */
+
+  const created = await withTransaction(async (dbClient) => {
+    let result;
+    try {
+      result = await dbClient.query(
+        `INSERT INTO monthly_totals (
+           business_id, created_by, narration, amount, currency,
+           approved, approver_id, month_in_review
+         ) VALUES ($1, $2, $3, $4, $5, FALSE, NULL, $6)
+         RETURNING ${MONTHLY_TOTAL_PUBLIC_COLUMNS}`,
+        [businessId, req.user.id, data.narration, data.amount, data.currency, data.month_in_review]
+      );
+    } catch (error) {
+      if (error.code === '23505' && error.constraint === UNIQUE_CONSTRAINT) {
+        throw new ApiError(409, DUPLICATE_MSG);
+      }
+      throw error;
+    }
+  
+    const mt = result.rows[0];
+  
+    await writeAudit(dbClient, {
+      actor_id: req.user.id,
+      subject_type: 'monthly_total',
+      subject_id: mt.id,
+      business_id: businessId,
+      action: 'created',
+      payload: {
+        amount: String(mt.amount),
+        currency: mt.currency,
+        month_in_review: mt.month_in_review,
+      },
+    });
+  
+    return mt;
+  });
+  
+  res.status(201).json({ data: created });
 });
 
 /**
@@ -162,6 +205,7 @@ const updateMonthlyTotal = asyncHandler(async (req, res) => {
   const values = fields.map((f) => data[f]);
   values.push(id, businessId);
 
+  /**
   let result;
   try {
     result = await dbPool.query(
@@ -181,6 +225,45 @@ const updateMonthlyTotal = asyncHandler(async (req, res) => {
   if (result.rows.length === 0) throw new ApiError(404, 'Monthly total not found');
 
   res.json({ data: result.rows[0] });
+  */
+
+  const updated = await withTransaction(async (dbClient) => {
+    let result;
+    try {
+      result = await dbClient.query(
+        `UPDATE monthly_totals
+         SET ${setClauses.join(', ')}
+         WHERE id = $${values.length - 1} AND business_id = $${values.length}
+         RETURNING ${MONTHLY_TOTAL_PUBLIC_COLUMNS}`,
+        values
+      );
+    } catch (error) {
+      if (error.code === '23505' && error.constraint === UNIQUE_CONSTRAINT) {
+        throw new ApiError(409, DUPLICATE_MSG);
+      }
+      throw error;
+    }
+  
+    if (result.rows.length === 0) {
+      throw new ApiError(404, 'Monthly total not found');
+    }
+    const mt = result.rows[0];
+  
+    // Approval transition gets its own action label; everything else is 'updated'.
+    const approvalOnly = Object.keys(data).length === 1 && 'approved' in data;
+    await writeAudit(dbClient, {
+      actor_id: req.user.id,
+      subject_type: 'monthly_total',
+      subject_id: mt.id,
+      business_id: businessId,
+      action: approvalOnly && data.approved ? 'approved' : 'updated',
+      payload: approvalOnly && data.approved ? null : { changes: data },
+    });
+  
+    return mt;
+  });
+  
+  res.json({ data: updated });
 });
 
 /**
@@ -197,10 +280,30 @@ const deleteMonthlyTotal = asyncHandler(async (req, res) => {
   await loadMonthlyTotalOr404(businessId, id);
   /** No immutability check here. Approved monthly totals must be deletable — otherwise the uq_monthly_total constraint traps an incorrect snapshot forever. Deleting and recreating is the correction mechanism. */
 
+  /**
   await dbPool.query(
     'DELETE FROM monthly_totals WHERE id = $1 AND business_id = $2',
     [id, businessId]
   );
+  */
+
+  await withTransaction(async (dbClient) => {
+    const result = await dbClient.query(
+      'DELETE FROM monthly_totals WHERE id = $1 AND business_id = $2 RETURNING id',
+      [id, businessId]
+    );
+    if (result.rows.length === 0) {
+      throw new ApiError(404, 'Monthly total not found');
+    }
+  
+    await writeAudit(dbClient, {
+      actor_id: req.user.id,
+      subject_type: 'monthly_total',
+      subject_id: id,
+      business_id: businessId,
+      action: 'deleted',
+    });
+  });
 
   res.json({ message: 'Monthly total deleted' });
 });

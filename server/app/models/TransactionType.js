@@ -69,7 +69,8 @@ const TransactionType = `
   description TEXT NOT NULL,
   type VARCHAR(50) NOT NULL DEFAULT 'debit',
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP, 
+  deleted_at TIMESTAMPTZ, 
 
   CONSTRAINT fk_transaction_type_business
     FOREIGN KEY (business_id)

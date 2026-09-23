@@ -4,12 +4,7 @@ import ApiError from '../../../utils/errors/ApiError.js';
 import parseId from '../../../utils/http/parseId.js';
 import resolvePagination from '../../../utils/pagination/resolvePagination.js';
 import paginateResponse from '../../../utils/pagination/paginateResponse.js';
-import withTransaction from '../../../utils/db/withTransaction.js';
-import writeAudit from '../../../utils/audit/writeAudit.js';
-import {
-  TRANSACTION_PUBLIC_COLUMNS,
-  TRANSACTION_SELECT_COLUMNS,
-} from '../resources/transactionResource.js';
+import { TRANSACTION_PUBLIC_COLUMNS, TRANSACTION_SELECT_COLUMNS } from '../resources/transactionResource.js';
 import createTransactionRequest from '../requests/createTransactionRequest.js';
 import updateTransactionRequest from '../requests/updateTransactionRequest.js';
 import { loadVisibleBusiness, loadManageableBusiness } from '../../../utils/business/access.js';
@@ -17,11 +12,15 @@ import { loadVisibleBusiness, loadManageableBusiness } from '../../../utils/busi
 const IMMUTABILITY_MSG =
   'Approved transactions cannot be modified or deleted. Reverse it to make corrections.';
 
-async function loadTransactionOr404(businessId, id, client = dbPool) {
-  const { rows } = await client.query(
+/**
+ * Loads a transaction scoped to the business, or throws 404. Also returns
+ * the `approved` flag so callers can enforce immutability.
+ */
+async function loadTransactionOr404(businessId, id) {
+  const { rows } = await dbPool.query(
     `SELECT id, approved, reverses_transaction_id
      FROM transactions
-     WHERE id = $1 AND business_id = $2 AND deleted_at IS NULL`,
+     WHERE id = $1 AND business_id = $2`,
     [id, businessId]
   );
   if (rows.length === 0) throw new ApiError(404, 'Transaction not found');
@@ -84,46 +83,28 @@ const createTransaction = asyncHandler(async (req, res) => {
     });
   }
 
-  const created = await withTransaction(async (client) => {
-    const result = await client.query(
-      `INSERT INTO transactions (
-         transaction_type_id, business_id, created_by, narration,
-         amount, currency, approved, approver_id, transaction_date
-       ) VALUES (
-         $1, $2, $3, $4,
-         $5, $6, FALSE, NULL, COALESCE($7::timestamptz, CURRENT_TIMESTAMP)
-       )
-       RETURNING ${TRANSACTION_PUBLIC_COLUMNS}`,
-      [
-        data.transaction_type_id,
-        businessId,
-        req.user.id,
-        data.narration,
-        data.amount,
-        data.currency,
-        data.transaction_date ?? null,
-      ]
-    );
-    const tx = result.rows[0];
+  const result = await dbPool.query(
+    `INSERT INTO transactions (
+       transaction_type_id, business_id, created_by, narration,
+       amount, currency, approved, approver_id, transaction_date
+     ) VALUES (
+       $1, $2, $3, $4,
+       $5, $6, FALSE, NULL, COALESCE($7::timestamptz, CURRENT_TIMESTAMP)
+     )
+     RETURNING ${TRANSACTION_PUBLIC_COLUMNS}`,
+    [
+      data.transaction_type_id,
+      businessId,
+      req.user.id,
+      data.narration,
+      data.amount,
+      data.currency,
+      data.transaction_date ?? null,
+    ]
+  );
 
-    await writeAudit(client, {
-      actor_id: req.user.id,
-      subject_type: 'transaction',
-      subject_id: tx.id,
-      business_id: businessId,
-      action: 'created',
-      payload: {
-        transaction_type_id: tx.transaction_type_id,
-        amount: String(tx.amount),
-        currency: tx.currency,
-        narration: tx.narration,
-      },
-    });
-
-    return tx;
-  });
-
-  res.status(201).json({ data: { ...created, is_reversed: false } });
+  /** A freshly created row cannot yet have been reversed. */
+  res.status(201).json({ data: { ...result.rows[0], is_reversed: false } });
 });
 
 /**
@@ -163,10 +144,17 @@ const updateTransaction = asyncHandler(async (req, res) => {
   await loadManageableBusiness(businessId, req.user);
 
   const existing = await loadTransactionOr404(businessId, id);
-  if (existing.approved) throw new ApiError(409, IMMUTABILITY_MSG);
+  if (existing.approved) {
+    throw new ApiError(409, IMMUTABILITY_MSG);
+  }
 
   const data = updateTransactionRequest(req.body);
 
+  /**
+  if (existing.reverses_transaction_id !== null) {
+    throw new ApiError(409, 'A reversal entry cannot be modified.');
+  }
+  */
   if (existing.reverses_transaction_id !== null) {
     const disallowed = Object.keys(data).filter(
       (k) => k !== 'narration' && k !== 'approved'
@@ -191,49 +179,38 @@ const updateTransaction = asyncHandler(async (req, res) => {
     }
   }
 
-  /** Snapshot what the client requested BEFORE we derive approver_id. */
-  const changes = { ...data };
-
+  /** `approved` transition drives `approver_id`. Only fires on unapproved transactions (the guard above already rejected the approved case). */
   if ('approved' in data) {
-    data.approver_id = data.approved === true ? req.user.id : null;
+    if (data.approved === true) {
+      data.approver_id = req.user.id;
+    } else {
+      data.approver_id = null;
+    }
   }
 
   const fields = Object.keys(data);
-  if (fields.length === 0) throw new ApiError(400, 'No updatable fields provided');
+  if (fields.length === 0) {
+    throw new ApiError(400, 'No updatable fields provided');
+  }
 
   const setClauses = fields.map((f, i) => `${f} = $${i + 1}`);
   const values = fields.map((f) => data[f]);
   values.push(id, businessId);
 
-  const updated = await withTransaction(async (client) => {
-    const result = await client.query(
-      `UPDATE transactions
-       SET ${setClauses.join(', ')}
-       WHERE id = $${values.length - 1}
-         AND business_id = $${values.length}
-         AND deleted_at IS NULL
-       RETURNING ${TRANSACTION_PUBLIC_COLUMNS}`,
-      values
-    );
-    if (result.rows.length === 0) throw new ApiError(404, 'Transaction not found');
-    const tx = result.rows[0];
+  const result = await dbPool.query(
+    `UPDATE transactions
+     SET ${setClauses.join(', ')}
+     WHERE id = $${values.length - 1} AND business_id = $${values.length}
+     RETURNING ${TRANSACTION_PUBLIC_COLUMNS}`,
+    values
+  );
 
-    /** Approval transition is its own action; everything else is 'updated'. */
-    const onlyApproval =
-      Object.keys(changes).length === 1 && 'approved' in changes;
-    await writeAudit(client, {
-      actor_id: req.user.id,
-      subject_type: 'transaction',
-      subject_id: tx.id,
-      business_id: businessId,
-      action: onlyApproval && changes.approved ? 'approved' : 'updated',
-      payload: onlyApproval && changes.approved ? null : { changes },
-    });
-
-    return tx;
-  });
-
-  res.json({ data: { ...updated, is_reversed: false } });
+  const row = result.rows[0];
+  /**
+  Whether it's now reversed: unknown after update, but a row with reverses_transaction_id set is itself a reversal (never reversed).
+  A non-reversal row could have been reversed by someone else, which the immutability guard above permits only for unapproved rows, and unapproved rows cannot have been reversed (reversals target approved rows only). 
+  */
+  res.json({ data: { ...row, is_reversed: false } });
 });
 
 /**
@@ -248,26 +225,14 @@ const deleteTransaction = asyncHandler(async (req, res) => {
   await loadManageableBusiness(businessId, req.user);
 
   const existing = await loadTransactionOr404(businessId, id);
-  if (existing.approved) throw new ApiError(409, IMMUTABILITY_MSG);
+  if (existing.approved) {
+    throw new ApiError(409, IMMUTABILITY_MSG);
+  }
 
-  await withTransaction(async (client) => {
-    const result = await client.query(
-      `UPDATE transactions
-       SET deleted_at = CURRENT_TIMESTAMP
-       WHERE id = $1 AND business_id = $2 AND deleted_at IS NULL
-       RETURNING id`,
-      [id, businessId]
-    );
-    if (result.rows.length === 0) throw new ApiError(404, 'Transaction not found');
-
-    await writeAudit(client, {
-      actor_id: req.user.id,
-      subject_type: 'transaction',
-      subject_id: id,
-      business_id: businessId,
-      action: 'deleted',
-    });
-  });
+  await dbPool.query(
+    'DELETE FROM transactions WHERE id = $1 AND business_id = $2',
+    [id, businessId]
+  );
 
   res.json({ message: 'Transaction deleted' });
 });
@@ -287,12 +252,13 @@ const reverseTransaction = asyncHandler(async (req, res) => {
     `SELECT id, transaction_type_id, narration, amount, currency,
             approved, reverses_transaction_id
      FROM transactions
-     WHERE id = $1 AND business_id = $2 AND deleted_at IS NULL`,
+     WHERE id = $1 AND business_id = $2`,
     [id, businessId]
   );
   if (origRows.length === 0) throw new ApiError(404, 'Transaction not found');
 
   const orig = origRows[0];
+
   if (!orig.approved) {
     throw new ApiError(
       409,
@@ -308,63 +274,36 @@ const reverseTransaction = asyncHandler(async (req, res) => {
     typeof requestedNarration === 'string' && requestedNarration.trim()
       ? requestedNarration.trim()
       : `Reversal of transaction #${orig.id}`;
+
+  /** amount comes back from pg as a string; unary minus coerces to a number. Then pg serializes it back to a string for the BIGINT parameter. */
   const reversedAmount = -Number(orig.amount);
 
-  const created = await withTransaction(async (client) => {
-    let result;
-    try {
-      result = await client.query(
-        `INSERT INTO transactions (
-           transaction_type_id, business_id, created_by, narration,
-           amount, currency, approved, approver_id, reverses_transaction_id
-         ) VALUES ($1, $2, $3, $4, $5, $6, FALSE, NULL, $7)
-         RETURNING ${TRANSACTION_PUBLIC_COLUMNS}`,
-        [
-          orig.transaction_type_id,
-          businessId,
-          req.user.id,
-          narration,
-          reversedAmount,
-          orig.currency,
-          orig.id,
-        ]
-      );
-    } catch (error) {
-      if (error.code === '23505' && error.constraint === 'uq_transaction_reverses') {
-        throw new ApiError(409, 'This transaction has already been reversed.');
-      }
-      throw error;
+  let result;
+  try {
+    result = await dbPool.query(
+      `INSERT INTO transactions (
+         transaction_type_id, business_id, created_by, narration,
+         amount, currency, approved, approver_id, reverses_transaction_id
+       ) VALUES ($1, $2, $3, $4, $5, $6, FALSE, NULL, $7)
+       RETURNING ${TRANSACTION_PUBLIC_COLUMNS}`,
+      [
+        orig.transaction_type_id,
+        businessId,
+        req.user.id,
+        narration,
+        reversedAmount,
+        orig.currency,
+        orig.id,
+      ]
+    );
+  } catch (error) {
+    if (error.code === '23505' && error.constraint === 'uq_transaction_reverses') {
+      throw new ApiError(409, 'This transaction has already been reversed.');
     }
-    const tx = result.rows[0];
+    throw error;
+  }
 
-    await writeAudit(client, {
-      actor_id: req.user.id,
-      subject_type: 'transaction',
-      subject_id: tx.id,
-      business_id: businessId,
-      action: 'created',
-      payload: {
-        transaction_type_id: tx.transaction_type_id,
-        amount: String(tx.amount),
-        currency: tx.currency,
-        narration: tx.narration,
-        reverses_transaction_id: tx.reverses_transaction_id,
-      },
-    });
-
-    await writeAudit(client, {
-      actor_id: req.user.id,
-      subject_type: 'transaction',
-      subject_id: orig.id,
-      business_id: businessId,
-      action: 'reversed',
-      payload: { reversal_id: tx.id },
-    });
-
-    return tx;
-  });
-
-  res.status(201).json({ data: { ...created, is_reversed: false } });
+  res.status(201).json({ data: { ...result.rows[0], is_reversed: false } });
 });
 
 export {

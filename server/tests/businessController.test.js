@@ -277,12 +277,39 @@ describe('DELETE /api/v1/businesses/:id', () => {
     expect(after.status).toBe(404);
   });
 
+  /**
   it('returns 409 when the business has children', async () => {
     const res = await request(server)
       .delete(`${BASE}/${ACME}`)
       .set('Authorization', asAda());
     expect(res.status).toBe(409);
     expect(res.body.message).toMatch(/cannot delete/i);
+  });
+  */
+
+  it('soft-deletes a business even when it has children', async () => {
+    const res = await request(server)
+      .delete(`${BASE}/${ACME}`)
+      .set('Authorization', asAda());
+    expect(res.status).toBe(200);
+    expect(res.body.message).toBe('Business deleted');
+  
+    /** Parent gone from the API */
+    const gone = await request(server)
+      .get(`${BASE}/${ACME}`)
+      .set('Authorization', asAda());
+    expect(gone.status).toBe(404);
+  
+    /** Children unreachable — their routes call loadVisibleBusiness/loadManageableBusiness first, which now filter deleted businesses */
+    const members = await request(server)
+      .get(`${BASE}/${ACME}/members`)
+      .set('Authorization', asAda());
+    expect(members.status).toBe(404);
+  
+    const txs = await request(server)
+      .get(`${BASE}/${ACME}/transactions`)
+      .set('Authorization', asAda());
+    expect(txs.status).toBe(404);
   });
 
   it('ordinary member gets 404', async () => {

@@ -8,6 +8,7 @@ import validate from '../../../../utils/validation/validate.js';
 import { BCRYPT_ROUNDS } from '../../../../utils/constants.js';
 import sendMail from '../../../mails/sendMail.js';
 import passwordResetMail from '../../../mails/templates/passwordResetMail.js';
+import writeAuthEvent from '../../../../utils/auth/writeAuthEvent.js';
 
 const RESET_TTL_MS = 10 * 60 * 1000;
 const GENERIC_RESPONSE = {
@@ -25,9 +26,9 @@ const mailPasswordResetLink = asyncHandler(async (req, res) => {
   });
 
   const { rows } = await dbPool.query(
-    'SELECT id, first_name, email FROM users WHERE email = $1 LIMIT 1',
+    'SELECT id, first_name, email FROM users WHERE email = $1 AND deleted_at IS NULL LIMIT 1',
     [email]
-  );
+  ); 
 
   const user = rows[0];
   /** No enumeration: same response whether or not the account exists, and same response even if mail sending later fails. */
@@ -44,7 +45,13 @@ const mailPasswordResetLink = asyncHandler(async (req, res) => {
          password_reset_token_expires_at = $2
      WHERE id = $3`,
     [token, expiresAt, user.id]
-  );
+  ); 
+
+  await writeAuthEvent(req, {
+    user_id: user.id,
+    event_type: 'password_reset_requested',
+    attempted_identifier: email,
+  });
 
   const frontend = process.env.FRONTEND_URL || 'http://localhost:3000';
   const resetUrl = `${frontend}/reset-password?token=${token}`;
@@ -73,7 +80,8 @@ const passwordReset = asyncHandler(async (req, res) => {
     `SELECT id
      FROM users
      WHERE password_reset_token = $1
-       AND password_reset_token_expires_at > CURRENT_TIMESTAMP
+       AND password_reset_token_expires_at > CURRENT_TIMESTAMP 
+       AND deleted_at IS NULL 
      LIMIT 1`,
     [token]
   );
@@ -94,6 +102,11 @@ const passwordReset = asyncHandler(async (req, res) => {
      WHERE id = $2`,
     [passwordHash, user.id]
   );
+
+  await writeAuthEvent(req, {
+    user_id: user.id,
+    event_type: 'password_reset_completed',
+  });
 
   res.json({ message: 'Password reset successful. You can now sign in.' });
 });

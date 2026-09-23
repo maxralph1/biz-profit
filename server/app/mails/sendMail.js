@@ -32,6 +32,8 @@ export default async function sendMail({ to, subject, html }) {
   const t = getTransporter();
 
   if (!t) {
+    if (process.env.ENV === 'test') return;
+    
     if (process.env.ENV === 'production') {
       throw new Error('SMTP is not configured in production');
     }

@@ -371,6 +371,8 @@ describe('PUT /api/v1/me/password', () => {
       password: 'Password123!',
     });
 
+    await new Promise((r) => setTimeout(r, 1100));
+
     /** Password change happens via a *separate* client (direct request with grace's access token), NOT through the agent. This simulates another device changing the password while the agent's session stays as-is. */
     const access = bearerFor({ id: ctx.userIds.grace, role: 'user' });
     await request(server)
@@ -379,10 +381,29 @@ describe('PUT /api/v1/me/password', () => {
       .send({ current_password: 'Password123!', new_password: 'NewPassword456!' });
 
     /** Give jwt's iat enough room to be strictly less than password_changed_at. */
-    await new Promise((r) => setTimeout(r, 1100));
+    // await new Promise((r) => setTimeout(r, 1100));
 
     /** The agent's refresh token is now stale. */
     const refreshed = await agent.post('/api/v1/auth/refresh-token');
     expect(refreshed.status).toBe(401);
+  });
+
+  it('the fresh refresh token from the password-change response is not rejected', async () => {
+    const agent = request.agent(server);
+    await agent.post('/api/v1/auth/sign-in').send({
+      email_username: 'grace',
+      password: 'Password123!',
+    });
+
+    /** Through the agent so its cookie is overwitten by the response */
+    // const access = bearerFor({ id: ctx.userIds.grace, role: 'user' });
+    await agent
+      .put(`${BASE}/password`)
+      //.set('Authorization', access)
+      .send({ current_password: 'Password123!', new_password: 'NewPassword456!' });
+  
+    const refreshed = await agent.post('/api/v1/auth/refresh-token');
+    expect(refreshed.status).toBe(200);
+    expect(refreshed.body.access_token).toBeTruthy();
   });
 });

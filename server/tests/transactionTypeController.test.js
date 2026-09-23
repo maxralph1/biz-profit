@@ -318,18 +318,44 @@ describe('DELETE transaction-type', () => {
     expect(res.status).toBe(200);
   });
 
+  /**
   it('returns 409 when transactions reference the type', async () => {
     const list = await request(server).get(base(ACME)).set('Authorization', asAda());
+  */
     /**
     Seed creates transactions against 'Bean purchase' and 'Cup sale'.
     Find whichever is currently referenced; the seed guarantees at least one is.
     */
+  /**
     const referenced = list.body.data.find(t => t.name === 'Bean purchase');
     const res = await request(server)
       .delete(`${base(ACME)}/${referenced.id}`)
       .set('Authorization', asAda());
     expect(res.status).toBe(409);
     expect(res.body.message).toMatch(/referenced by existing transactions/i);
+  });
+  **/
+
+  it('soft-deletes a transaction type referenced by transactions', async () => {
+    const list = await request(server).get(base(ACME)).set('Authorization', asAda());
+    const referenced = list.body.data.find(t => t.name === 'Bean purchase');
+  
+    const res = await request(server)
+      .delete(`${base(ACME)}/${referenced.id}`)
+      .set('Authorization', asAda());
+    expect(res.status).toBe(200);
+  
+    // Hidden from the API
+    const after = await request(server)
+      .get(`${base(ACME)}/${referenced.id}`)
+      .set('Authorization', asAda());
+    expect(after.status).toBe(404);
+  
+    // But the transaction that references it is untouched
+    const txRes = await request(server)
+      .get(`/api/v1/businesses/${ACME}/transactions`)
+      .set('Authorization', asAda());
+    expect(txRes.status).toBe(200);
   });
 
   it('returns 404 when id belongs to another business', async () => {

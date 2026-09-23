@@ -113,6 +113,7 @@ const Transaction = `
   reverses_transaction_id INT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  deleted_at TIMESTAMPTZ,
 
   CONSTRAINT fk_transaction_transaction_type
     FOREIGN KEY (transaction_type_id)

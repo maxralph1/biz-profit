@@ -8,6 +8,7 @@ import refreshTokenSigning from '../../../../utils/refreshTokenSigning.js';
 import { signQaChallenge, verifyQaChallenge } from '../../../../utils/qaChallengeSigning.js';
 import { checkQaRateLimit, clearQaRateLimit } from '../../../../utils/rateLimit/qaAttempts.js';
 import { REFRESH_COOKIE_OPTIONS } from '../../../../utils/auth/refreshCookie.js';
+import writeAuthEvent from '../../../../utils/auth/writeAuthEvent.js';
 
 /**
 const REFRESH_COOKIE_MAX_AGE_MS = 15 * 24 * 60 * 60 * 1000;
@@ -35,7 +36,7 @@ const signIn = asyncHandler(async (req, res) => {
   const { rows } = await dbPool.query(
     `SELECT id, username, password, role, secret_question_login, email_verified
      FROM users
-     WHERE username = $1 OR email = $1
+     WHERE (username = $1 OR email = $1) AND deleted_at IS NULL 
      LIMIT 1`,
     [email_username]
   );
@@ -43,25 +44,49 @@ const signIn = asyncHandler(async (req, res) => {
   const user = rows[0];
   const passwordMatch = user && (await bcrypt.compare(password, user.password));
   if (!passwordMatch) {
+    await writeAuthEvent(req, {
+      user_id: user?.id ?? null, 
+      event_type: 'login_failed', 
+      attempted_identifier: email_username, 
+      metadata: { reason: user 
+                  ? 'wrong_password' 
+                  : 'unknown_user' }
+    });
     throw new ApiError(401, 'Unauthorized');
   }
 
   if (!user.email_verified) {
+    await writeAuthEvent(req, {
+      user_id: user?.id, 
+      event_type: 'login_failed', 
+      attempted_identifier: email_username, 
+      metadata: { reason: 'email_not_verified' }
+    });
     throw new ApiError(403, 'Email not verified. Check your inbox for the verification code.');
   }
 
   if (user.secret_question_login) {
     const challengeToken = signQaChallenge(user);
+    await writeAuthEvent(req, {
+      user_id: user?.id, 
+      event_type: 'login_qa_challenge_issued', 
+      attempted_identifier: email_username, 
+    });
     return res.status(202).json({
       data: { challenge_token: challengeToken },
     });
   }
 
+  await writeAuthEvent(req, {
+      user_id: user?.id, 
+      event_type: 'login_succeeded', 
+      attempted_identifier: email_username, 
+    });
+
   const accessToken = accessTokenSigning(user);
   const refreshToken = refreshTokenSigning(user);
 
-  res
-    .cookie('jwt', refreshToken, REFRESH_COOKIE_OPTIONS)
+  res.cookie('jwt', refreshToken, REFRESH_COOKIE_OPTIONS)
     .json({ access_token: accessToken });
 });
 
@@ -92,7 +117,8 @@ const signInWithSecretQA = asyncHandler(async (req, res) => {
      FROM users
      WHERE id = $1
        AND username = $2
-       AND secret_question_login = TRUE
+       AND secret_question_login = TRUE 
+       AND deleted_at IS NULL 
      LIMIT 1`,
     [challenge.user_id, challenge.username]
   );
@@ -112,6 +138,11 @@ const signInWithSecretQA = asyncHandler(async (req, res) => {
   );
 
   if (!answerMatch) {
+    await writeAuthEvent(req, {
+      user_id: user?.id, 
+      event_type: 'login_qa_failed', 
+      attempted_identifier: user.username, 
+    });
     throw new ApiError(401, 'Unauthorized');
   }
 
@@ -120,6 +151,12 @@ const signInWithSecretQA = asyncHandler(async (req, res) => {
 
   const accessToken = accessTokenSigning(user);
   const refreshToken = refreshTokenSigning(user);
+
+  await writeAuthEvent(req, {
+      user_id: user?.id, 
+      event_type: 'login_qa_succeeded', 
+      attempted_identifier: user.username, 
+    });
 
   res.cookie('jwt', refreshToken, REFRESH_COOKIE_OPTIONS)
     .json({ access_token: accessToken });
