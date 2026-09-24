@@ -4,7 +4,7 @@ const ROLE_RE = /^(owner|admin|member)$/;
 
 export default function createBusinessMemberRequest(reqBody) {
   return validate(reqBody, {
-    user_id: { required: true, type: 'integer' },
+    user_id: { required: true, type: 'uuid' },
     role: {
       required: true,
       type: 'string',

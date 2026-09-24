@@ -41,7 +41,7 @@ const CURRENCY_RE = /^[A-Z]{3}$/;
 
 export default function createTransactionRequest(reqBody) {
   const data = validate(reqBody, {
-    transaction_type_id: { required: true, type: 'integer', minValue: 1 },
+    transaction_type_id: { required: true, type: 'uuid' },
     narration: { required: true, 
                  type: 'string', 
                  min: 1 

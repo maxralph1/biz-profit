@@ -1,9 +1,9 @@
 const AuditEvent = `
-  id SERIAL PRIMARY KEY,
-  actor_id INT NOT NULL,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  actor_id UUID NOT NULL, 
   subject_type VARCHAR(50) NOT NULL,
-  subject_id INT NOT NULL,
-  business_id INT NULL,
+  subject_id UUID NOT NULL,
+  business_id UUID NULL,
   action VARCHAR(50) NOT NULL,
   payload JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,

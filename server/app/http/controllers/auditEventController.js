@@ -1,7 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import dbPool from '../../../config/db/dbPool.js';
 import ApiError from '../../../utils/errors/ApiError.js';
-import parseId from '../../../utils/http/parseId.js';
+import parseUuid from '../../../utils/http/parseUuid.js';
 import resolvePagination from '../../../utils/pagination/resolvePagination.js';
 import paginateResponse from '../../../utils/pagination/paginateResponse.js';
 import AUDIT_EVENT_PUBLIC_COLUMNS from '../resources/auditEventResource.js';
@@ -20,7 +20,7 @@ const VALID_SUBJECT_TYPES = new Set([
 const getBusinessAuditEvents = asyncHandler(async (req, res) => {
   // console.log('[audit] req.params:', JSON.stringify(req.params));
   
-  const businessId = parseId(req.params.businessId, 'business id');
+  const businessId = parseUuid(req.params.businessId, 'business id');
 
   await loadVisibleBusiness(businessId, req.user);
 
@@ -39,18 +39,24 @@ const getBusinessAuditEvents = asyncHandler(async (req, res) => {
     conditions.push(`subject_type = $${values.length}`);
   }
   if (subject_id) {
+    /**
     const sid = Number(subject_id);
     if (!Number.isInteger(sid) || sid < 1) {
       throw new ApiError(400, 'Invalid subject_id filter');
     }
+    */
+    const sid = parseUuid(subject_id, 'subject id');
     values.push(sid);
     conditions.push(`subject_id = $${values.length}`);
   }
   if (actor_id) {
+    /**
     const aid = Number(actor_id);
     if (!Number.isInteger(aid) || aid < 1) {
       throw new ApiError(400, 'Invalid actor_id filter');
     }
+    */
+    const aid = parseUuid(actor_id, 'actor id');
     values.push(aid);
     conditions.push(`actor_id = $${values.length}`);
   }
@@ -92,8 +98,8 @@ const getBusinessAuditEvents = asyncHandler(async (req, res) => {
 * ---------------------------------------------------
 */
 const getTransactionAuditEvents = asyncHandler(async (req, res) => {
-  const businessId = parseId(req.params.businessId, 'business id');
-  const id = parseId(req.params.id, 'transaction id');
+  const businessId = parseUuid(req.params.businessId, 'business id');
+  const id = parseUuid(req.params.id, 'transaction id');
 
   await loadVisibleBusiness(businessId, req.user);
 

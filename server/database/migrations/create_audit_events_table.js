@@ -1,9 +1,18 @@
+import 'dotenv/config';
 import AuditEvent from '../../app/models/AuditEvent.js';
 import dbClient from '../../config/db/dbClient.js';
 
 async function createAuditEventsTable() {
   try {
+    await dbClient.query('CREATE EXTENSION IF NOT EXISTS "pgcrypto"');
+    
     await dbClient.query('BEGIN');
+
+    if (process.env.ENV === 'test') {
+      await dbClient.query(`
+        DROP TABLE IF EXISTS audit_events
+      `);
+    };
 
     await dbClient.query(`
       CREATE TABLE audit_events (

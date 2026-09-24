@@ -6,6 +6,8 @@ import asServer from './helpers/asServer.js';
 import { bearerFor } from './helpers/auth.js';
 import { setupSchema, resetAndSeed, teardown } from './setup.js';
 
+/** A well-formed UUID that isn't assigned to any seeded user. */
+const MISSING_UUID = '00000000-0000-0000-0000-000000000000';
 const server = asServer(app);
 const BASE = '/api/v1/businesses';
 
@@ -165,14 +167,23 @@ describe('GET /api/v1/businesses/:id', () => {
   });
 
   it('nonexistent id gets 404', async () => {
-    const res = await request(server).get(`${BASE}/99999`).set('Authorization', asSiteAdmin());
+    const res = await request(server).get(`${BASE}/${MISSING_UUID}`).set('Authorization', asSiteAdmin());
     expect(res.status).toBe(404);
   });
 
+  /**
   it('non-numeric id gets 400', async () => {
     const res = await request(server).get(`${BASE}/abc`).set('Authorization', asSiteAdmin());
     expect(res.status).toBe(400);
   });
+  */
+
+  it('returns 400 for a malformed id', async () => {
+  const res = await request(server)
+    .get(`${BASE}/not-a-uuid`)
+    .set('Authorization', asSiteAdmin());
+  expect(res.status).toBe(400);
+});
 
   it('requires authentication', async () => {
     const res = await request(server).get(`${BASE}/${ACME}`);

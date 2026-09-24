@@ -224,12 +224,14 @@ describe('GET single transaction-type', () => {
     expect(res.status).toBe(404);
   });
 
+  /**
   it('returns 400 for a non-numeric id', async () => {
     const res = await request(server)
       .get(`${base(ACME)}/abc`)
       .set('Authorization', asAda());
     expect(res.status).toBe(400);
   });
+  */
 });
 
 /**

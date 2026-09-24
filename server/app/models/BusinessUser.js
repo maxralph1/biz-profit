@@ -57,9 +57,9 @@ export default BusinessUser;
 
 
 const BusinessUser = `
-  id SERIAL PRIMARY KEY,
-  business_id INT NOT NULL,
-  user_id INT NOT NULL,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL, 
+  user_id UUID NOT NULL, 
   role VARCHAR(50) NOT NULL DEFAULT 'member',
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,

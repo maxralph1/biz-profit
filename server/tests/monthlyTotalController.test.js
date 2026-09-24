@@ -21,6 +21,9 @@ beforeEach(async () => {
   BETA = ctx.businessIds['Beta Freight'];
 });
 
+/** A well-formed UUID that isn't assigned to any seeded user. */
+const MISSING_UUID = '00000000-0000-0000-0000-000000000000';
+
 const asAda = () => bearerFor({ id: ctx.userIds.ada, role: 'user' });
 const asGrace = () => bearerFor({ id: ctx.userIds.grace, role: 'user' });
 const asAlan = () => bearerFor({ id: ctx.userIds.alan, role: 'user' });
@@ -343,7 +346,7 @@ describe('DELETE monthly totals', () => {
 
   it('returns 404 for a nonexistent id', async () => {
     const res = await request(server)
-      .delete(`${base(ACME)}/99999`)
+      .delete(`${base(ACME)}/${MISSING_UUID}`)
       .set('Authorization', asAda());
     expect(res.status).toBe(404);
   });

@@ -8,7 +8,7 @@ import BUSINESS_USER_PUBLIC_COLUMNS from '../resources/businessUserResource.js';
 import createBusinessMemberRequest from '../requests/createBusinessMemberRequest.js';
 import updateBusinessMemberRequest from '../requests/updateBusinessMemberRequest.js';
 import { loadVisibleBusiness, loadManageableBusiness } from '../../../utils/business/access.js';
-import parseId from '../../../utils/http/parseId.js';
+import parseUuid from '../../../utils/http/parseUuid.js';
 import withTransaction from '../../../utils/db/withTransaction.js';
 import writeAudit from '../../../utils/audit/writeAudit.js';
 
@@ -29,7 +29,7 @@ function parsePositiveInt(raw, label) {
 */
 const getBusinessMembers = asyncHandler(async (req, res) => {
   // const businessId = parsePositiveInt(req.params.businessId, 'business id');
-  const businessId = parseId(req.params.businessId, 'business id');
+  const businessId = parseUuid(req.params.businessId, 'business id');
 
   /** Listing is a read — any connected member (or site admin) can do it. */
   await loadVisibleBusiness(businessId, req.user);
@@ -69,7 +69,7 @@ const getBusinessMembers = asyncHandler(async (req, res) => {
 */
 const addBusinessMember = asyncHandler(async (req, res) => {
   // const businessId = parsePositiveInt(req.params.businessId, 'business id');
-  const businessId = parseId(req.params.businessId, 'business id');
+  const businessId = parseUuid(req.params.businessId, 'business id');
 
   await loadManageableBusiness(businessId, req.user);
 
@@ -158,9 +158,9 @@ const addBusinessMember = asyncHandler(async (req, res) => {
 */
 const updateBusinessMember = asyncHandler(async (req, res) => {
   // const businessId = parsePositiveInt(req.params.businessId, 'business id');
-  const businessId = parseId(req.params.businessId, 'business id');
+  const businessId = parseUuid(req.params.businessId, 'business id');
   // const userId = parsePositiveInt(req.params.userId, 'user id');
-  const userId = parseId(req.params.userId, 'user id');
+  const userId = parseUuid(req.params.userId, 'user id');
 
   await loadManageableBusiness(businessId, req.user);
 
@@ -219,10 +219,10 @@ const updateBusinessMember = asyncHandler(async (req, res) => {
 */
 const removeBusinessMember = asyncHandler(async (req, res) => {
   // const businessId = parsePositiveInt(req.params.businessId, 'business id');
-  const businessId = parseId(req.params.businessId, 'business id');
+  const businessId = parseUuid(req.params.businessId, 'business id');
   // const userId = parsePositiveInt(req.params.userId, 'user id');
 
-  const userId = parseId(req.params.userId, 'user id');
+  const userId = parseUuid(req.params.userId, 'user id');
   
   await loadManageableBusiness(businessId, req.user);
 

@@ -2,6 +2,7 @@ import dbClient from '../../config/db/dbClient.js';
 
 async function addAuditEventsAppendOnlyTrigger() {
   try {
+    await dbClient.query('CREATE EXTENSION IF NOT EXISTS "pgcrypto"');
     await dbClient.query('BEGIN');
 
     await dbClient.query(`

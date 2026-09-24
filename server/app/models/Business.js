@@ -16,6 +16,7 @@ const Business = `
 `;
 */
 
+/**
 const Business = `
   id SERIAL PRIMARY KEY,
   user_id INT NOT NULL,
@@ -24,6 +25,26 @@ const Business = `
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP, 
   deleted_at TIMESTAMPTZ, 
+
+  CONSTRAINT fk_business_user
+    FOREIGN KEY (user_id)
+    REFERENCES users(id)
+    ON DELETE RESTRICT
+    ON UPDATE CASCADE
+`;
+
+export default Business; 
+*/
+
+
+const Business = `
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  description TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  deleted_at TIMESTAMPTZ,
 
   CONSTRAINT fk_business_user
     FOREIGN KEY (user_id)

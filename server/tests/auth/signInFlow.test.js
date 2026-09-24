@@ -11,6 +11,9 @@ import { _resetAllQaRateLimits } from '../../utils/rateLimit/qaAttempts.js';
 
 const server = asServer(app);
 const BASE = '/api/v1/auth';
+let ctx; 
+/** A well-formed UUID that isn't assigned to any seeded user. */
+const MISSING_UUID = '00000000-0000-0000-0000-000000000000';
 
 jest.setTimeout(30_000);
 
@@ -18,8 +21,10 @@ beforeAll(setupSchema);
 // beforeEach(resetAndSeed);
 beforeEach(async () => {
   _resetAllQaRateLimits();
-  await resetAndSeed();
+  ctx = await resetAndSeed();
 });
+
+beforeEach(async () => { ctx = await resetAndSeed(); });
 afterAll(teardown);
 
 describe('POST /api/v1/auth/sign-in', () => {
@@ -170,7 +175,7 @@ describe('POST /api/v1/auth/sign-in-with-qa', () => {
 
   it('rejects a challenge token for a user without QA enabled', async () => {
     const forged = jwt.sign(
-      { purpose: 'qa-challenge', sub: 2, username: 'grace' },
+      { purpose: 'qa-challenge', sub: `${ctx.userIds.grace}`, username: 'grace' },
       process.env.QA_CHALLENGE_SECRET,
       { expiresIn: 60 }
     );
@@ -183,7 +188,7 @@ describe('POST /api/v1/auth/sign-in-with-qa', () => {
 
   it('rejects a challenge token for a nonexistent user', async () => {
     const forged = jwt.sign(
-      { purpose: 'qa-challenge', sub: 9999, username: 'ghost' },
+      { purpose: 'qa-challenge', sub: `${MISSING_UUID}`, username: 'ghost' },
       process.env.QA_CHALLENGE_SECRET,
       { expiresIn: 60 }
     );

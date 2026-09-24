@@ -6,6 +6,8 @@ import asServer from './helpers/asServer.js';
 import { bearerFor } from './helpers/auth.js';
 import { setupSchema, resetAndSeed, teardown } from './setup.js';
 
+/** A well-formed UUID that isn't assigned to any seeded user. */
+const MISSING_UUID = '00000000-0000-0000-0000-000000000000';
 const server = asServer(app);
 const BASE = '/api/v1/businesses';
 
@@ -128,7 +130,7 @@ describe('POST /api/v1/businesses/:id/members', () => {
     const res = await request(server)
       .post(`${BASE}/${ACME}/members`)
       .set('Authorization', asAda())
-      .send({ user_id: 99999, role: 'member' });
+      .send({ user_id: `${MISSING_UUID}`, role: 'member' });
     expect(res.status).toBe(404);
   });
 

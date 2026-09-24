@@ -2,7 +2,7 @@ import asyncHandler from 'express-async-handler';
 import dbClient from '../../../config/db/dbClient.js';
 import dbPool from '../../../config/db/dbPool.js';
 import ApiError from '../../../utils/errors/ApiError.js';
-import parseId from '../../../utils/http/parseId.js';
+import parseUuid from '../../../utils/http/parseUuid.js';
 import resolvePagination from '../../../utils/pagination/resolvePagination.js';
 import paginateResponse from '../../../utils/pagination/paginateResponse.js';
 import MONTHLY_TOTAL_PUBLIC_COLUMNS from '../resources/monthlyTotalResource.js';
@@ -37,7 +37,7 @@ async function loadMonthlyTotalOr404(businessId, id) {
 * ---------------------------------------------------
 */
 const getMonthlyTotals = asyncHandler(async (req, res) => {
-  const businessId = parseId(req.params.businessId, 'business id');
+  const businessId = parseUuid(req.params.businessId, 'business id');
 
   await loadVisibleBusiness(businessId, req.user);
 
@@ -71,7 +71,7 @@ const getMonthlyTotals = asyncHandler(async (req, res) => {
 * ---------------------------------------------------
 */
 const createMonthlyTotal = asyncHandler(async (req, res) => {
-  const businessId = parseId(req.params.businessId, 'business id');
+  const businessId = parseUuid(req.params.businessId, 'business id');
 
   await loadManageableBusiness(businessId, req.user);
 
@@ -153,8 +153,8 @@ const createMonthlyTotal = asyncHandler(async (req, res) => {
 * ---------------------------------------------------
 */
 const getMonthlyTotal = asyncHandler(async (req, res) => {
-  const businessId = parseId(req.params.businessId, 'business id');
-  const id = parseId(req.params.id, 'monthly total id');
+  const businessId = parseUuid(req.params.businessId, 'business id');
+  const id = parseUuid(req.params.id, 'monthly total id');
 
   await loadVisibleBusiness(businessId, req.user);
 
@@ -176,8 +176,8 @@ const getMonthlyTotal = asyncHandler(async (req, res) => {
 * ---------------------------------------------------
 */
 const updateMonthlyTotal = asyncHandler(async (req, res) => {
-  const businessId = parseId(req.params.businessId, 'business id');
-  const id = parseId(req.params.id, 'monthly total id');
+  const businessId = parseUuid(req.params.businessId, 'business id');
+  const id = parseUuid(req.params.id, 'monthly total id');
 
   await loadManageableBusiness(businessId, req.user);
 
@@ -272,8 +272,8 @@ const updateMonthlyTotal = asyncHandler(async (req, res) => {
 * ---------------------------------------------------
 */
 const deleteMonthlyTotal = asyncHandler(async (req, res) => {
-  const businessId = parseId(req.params.businessId, 'business id');
-  const id = parseId(req.params.id, 'monthly total id');
+  const businessId = parseUuid(req.params.businessId, 'business id');
+  const id = parseUuid(req.params.id, 'monthly total id');
 
   await loadManageableBusiness(businessId, req.user);
 

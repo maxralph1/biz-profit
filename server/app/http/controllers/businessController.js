@@ -4,7 +4,7 @@ import dbPool from '../../../config/db/dbPool.js';
 import ApiError from '../../../utils/errors/ApiError.js';
 // import buildUrl from '../../../utils/pagination/buildUrl.js';
 // import buildPageLinks from '../../../utils/pagination/buildPageLinks.js';
-import parseId from '../../../utils/http/parseId.js';
+import parseUuid from '../../../utils/http/parseUuid.js';
 import paginateResponse from '../../../utils/pagination/paginateResponse.js';
 import resolvePagination from '../../../utils/pagination/resolvePagination.js';
 import { loadVisibleBusiness, loadManageableBusiness } from '../../../utils/business/access.js';
@@ -117,7 +117,7 @@ const getBusiness = asyncHandler(async (req, res) => {
   }
   */
 
-  const id = parseId(req.params.id, 'business id');
+  const id = parseUuid(req.params.id, 'business id');
 
   const business = await loadVisibleBusiness(id, req.user);
   res.json({ data: business });
@@ -135,7 +135,7 @@ const updateBusiness = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'Invalid business id');
   }
   */
-  const id = parseId(req.params.id, 'business id');
+  const id = parseUuid(req.params.id, 'business id');
 
   await loadManageableBusiness(id, req.user);
 
@@ -189,7 +189,7 @@ const deleteBusiness = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'Invalid business id');
   }
   */
-  const id = parseId(req.params.id, 'business id');
+  const id = parseUuid(req.params.id, 'business id');
 
   await loadManageableBusiness(id, req.user);
 

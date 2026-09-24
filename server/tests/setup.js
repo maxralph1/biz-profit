@@ -24,7 +24,11 @@ const ALL_TABLES = `
   transaction_types, transactions, audit_events, auth_events, monthly_totals
 `;
 
+const client = dbClient;
+
 export async function setupSchema() {
+  await client.query('CREATE EXTENSION IF NOT EXISTS "pgcrypto"');
+  
   await resetSchema();
   await createUsersTable();
   await createBusinessesTable();
@@ -38,8 +42,6 @@ export async function setupSchema() {
 }
 
 export async function resetAndSeed() {
-  const client = dbClient;
-
   try {
     await client.query('BEGIN');
     await client.query(`TRUNCATE ${ALL_TABLES} RESTART IDENTITY CASCADE`);

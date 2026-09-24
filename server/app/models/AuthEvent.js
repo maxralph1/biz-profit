@@ -1,6 +1,6 @@
 const AuthEvent = `
-  id SERIAL PRIMARY KEY,
-  user_id INT NULL,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NULL,
   event_type VARCHAR(50) NOT NULL,
   attempted_identifier TEXT,
   ip VARCHAR(45),

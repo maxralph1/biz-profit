@@ -100,17 +100,17 @@ export default Transaction;
 
 
 const Transaction = `
-  id SERIAL PRIMARY KEY,
-  transaction_type_id INT NOT NULL,
-  business_id INT NOT NULL,
-  created_by INT NOT NULL,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  transaction_type_id UUID NOT NULL, 
+  business_id UUID NOT NULL, 
+  created_by UUID NOT NULL, 
   narration TEXT NOT NULL,
   amount BIGINT NOT NULL,
   currency CHAR(3) NOT NULL,
   approved BOOLEAN NOT NULL DEFAULT FALSE,
-  approver_id INT NULL,
+  approver_id UUID NULL, 
   transaction_date TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  reverses_transaction_id INT NULL,
+  reverses_transaction_id UUID NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   deleted_at TIMESTAMPTZ,

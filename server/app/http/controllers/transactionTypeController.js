@@ -2,7 +2,7 @@ import asyncHandler from 'express-async-handler';
 import dbClient from '../../../config/db/dbClient.js';
 import dbPool from '../../../config/db/dbPool.js';
 import ApiError from '../../../utils/errors/ApiError.js';
-import parseId from '../../../utils/http/parseId.js';
+import parseUuid from '../../../utils/http/parseUuid.js';
 import resolvePagination from '../../../utils/pagination/resolvePagination.js';
 import paginateResponse from '../../../utils/pagination/paginateResponse.js';
 import TRANSACTION_TYPE_PUBLIC_COLUMNS from '../resources/transactionTypeResource.js';
@@ -21,7 +21,7 @@ const DUPLICATE_NAME_MSG = 'A transaction type with that name already exists for
 * ---------------------------------------------------
 */
 const getTransactionTypes = asyncHandler(async (req, res) => {
-  const businessId = parseId(req.params.businessId, 'business id');
+  const businessId = parseUuid(req.params.businessId, 'business id');
 
   await loadVisibleBusiness(businessId, req.user);
 
@@ -55,7 +55,7 @@ const getTransactionTypes = asyncHandler(async (req, res) => {
 * ---------------------------------------------------
 */
 const createTransactionType = asyncHandler(async (req, res) => {
-  const businessId = parseId(req.params.businessId, 'business id');
+  const businessId = parseUuid(req.params.businessId, 'business id');
 
   await loadManageableBusiness(businessId, req.user);
 
@@ -119,8 +119,8 @@ const createTransactionType = asyncHandler(async (req, res) => {
 * ---------------------------------------------------
 */
 const getTransactionType = asyncHandler(async (req, res) => {
-  const businessId = parseId(req.params.businessId, 'business id');
-  const id = parseId(req.params.id, 'transaction type id');
+  const businessId = parseUuid(req.params.businessId, 'business id');
+  const id = parseUuid(req.params.id, 'transaction type id');
 
   await loadVisibleBusiness(businessId, req.user);
 
@@ -144,8 +144,8 @@ const getTransactionType = asyncHandler(async (req, res) => {
 * ---------------------------------------------------
 */
 const updateTransactionType = asyncHandler(async (req, res) => {
-  const businessId = parseId(req.params.businessId, 'business id');
-  const id = parseId(req.params.id, 'transaction type id');
+  const businessId = parseUuid(req.params.businessId, 'business id');
+  const id = parseUuid(req.params.id, 'transaction type id');
 
   await loadManageableBusiness(businessId, req.user);
 
@@ -229,8 +229,8 @@ const updateTransactionType = asyncHandler(async (req, res) => {
 * ---------------------------------------------------
 */
 const deleteTransactionType = asyncHandler(async (req, res) => {
-  const businessId = parseId(req.params.businessId, 'business id');
-  const id = parseId(req.params.id, 'transaction type id');
+  const businessId = parseUuid(req.params.businessId, 'business id');
+  const id = parseUuid(req.params.id, 'transaction type id');
 
   await loadManageableBusiness(businessId, req.user);
 

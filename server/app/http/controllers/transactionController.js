@@ -1,7 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import dbPool from '../../../config/db/dbPool.js';
 import ApiError from '../../../utils/errors/ApiError.js';
-import parseId from '../../../utils/http/parseId.js';
+import parseUuid from '../../../utils/http/parseUuid.js';
 import resolvePagination from '../../../utils/pagination/resolvePagination.js';
 import paginateResponse from '../../../utils/pagination/paginateResponse.js';
 import withTransaction from '../../../utils/db/withTransaction.js';
@@ -34,7 +34,7 @@ async function loadTransactionOr404(businessId, id, client = dbPool) {
 * ---------------------------------------------------
 */
 const getTransactions = asyncHandler(async (req, res) => {
-  const businessId = parseId(req.params.businessId, 'business id');
+  const businessId = parseUuid(req.params.businessId, 'business id');
 
   await loadVisibleBusiness(businessId, req.user);
 
@@ -68,7 +68,7 @@ const getTransactions = asyncHandler(async (req, res) => {
 * ---------------------------------------------------
 */
 const createTransaction = asyncHandler(async (req, res) => {
-  const businessId = parseId(req.params.businessId, 'business id');
+  const businessId = parseUuid(req.params.businessId, 'business id');
 
   await loadManageableBusiness(businessId, req.user);
 
@@ -132,8 +132,8 @@ const createTransaction = asyncHandler(async (req, res) => {
 * ---------------------------------------------------
 */
 const getTransaction = asyncHandler(async (req, res) => {
-  const businessId = parseId(req.params.businessId, 'business id');
-  const id = parseId(req.params.id, 'transaction id');
+  const businessId = parseUuid(req.params.businessId, 'business id');
+  const id = parseUuid(req.params.id, 'transaction id');
 
   await loadVisibleBusiness(businessId, req.user);
 
@@ -157,8 +157,8 @@ const getTransaction = asyncHandler(async (req, res) => {
 * ---------------------------------------------------
 */
 const updateTransaction = asyncHandler(async (req, res) => {
-  const businessId = parseId(req.params.businessId, 'business id');
-  const id = parseId(req.params.id, 'transaction id');
+  const businessId = parseUuid(req.params.businessId, 'business id');
+  const id = parseUuid(req.params.id, 'transaction id');
 
   await loadManageableBusiness(businessId, req.user);
 
@@ -242,8 +242,8 @@ const updateTransaction = asyncHandler(async (req, res) => {
 * ---------------------------------------------------
 */
 const deleteTransaction = asyncHandler(async (req, res) => {
-  const businessId = parseId(req.params.businessId, 'business id');
-  const id = parseId(req.params.id, 'transaction id');
+  const businessId = parseUuid(req.params.businessId, 'business id');
+  const id = parseUuid(req.params.id, 'transaction id');
 
   await loadManageableBusiness(businessId, req.user);
 
@@ -278,8 +278,8 @@ const deleteTransaction = asyncHandler(async (req, res) => {
 * ---------------------------------------------------
 */
 const reverseTransaction = asyncHandler(async (req, res) => {
-  const businessId = parseId(req.params.businessId, 'business id');
-  const id = parseId(req.params.id, 'transaction id');
+  const businessId = parseUuid(req.params.businessId, 'business id');
+  const id = parseUuid(req.params.id, 'transaction id');
 
   await loadManageableBusiness(businessId, req.user);
 

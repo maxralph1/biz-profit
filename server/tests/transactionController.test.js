@@ -277,9 +277,24 @@ describe('DELETE transactions', () => {
     expect(res.status).toBe(200);
   });
 
+  /**
   it('ordinary member cannot delete', async () => {
     const res = await request(server)
       .delete(`${base(ACME)}/1`)
+      .set('Authorization', asAlan());
+    expect(res.status).toBe(404);
+  });
+  */
+
+  it('ordinary member cannot delete', async () => {
+    const created = await request(server)
+      .post(base(ACME))
+      .set('Authorization', asAda())
+      .send(VALID());
+    const id = created.body.data.id;
+  
+    const res = await request(server)
+      .delete(`${base(ACME)}/${id}`)
       .set('Authorization', asAlan());
     expect(res.status).toBe(404);
   });

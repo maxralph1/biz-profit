@@ -62,9 +62,9 @@ export default TransactionType;
 
 
 const TransactionType = `
-  id SERIAL PRIMARY KEY,
-  business_id INT NOT NULL,
-  user_id INT NOT NULL,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL, 
+  user_id UUID NOT NULL, 
   name VARCHAR(255) NOT NULL,
   description TEXT NOT NULL,
   type VARCHAR(50) NOT NULL DEFAULT 'debit',

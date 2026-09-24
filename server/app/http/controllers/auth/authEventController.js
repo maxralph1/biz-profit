@@ -1,7 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import dbPool from '../../../../config/db/dbPool.js';
 import ApiError from '../../../../utils/errors/ApiError.js';
-import parseId from '../../../../utils/http/parseId.js';
+import parseUuid from '../../../../utils/http/parseUuid.js';
 import resolvePagination from '../../../../utils/pagination/resolvePagination.js';
 import paginateResponse from '../../../../utils/pagination/paginateResponse.js';
 
@@ -57,7 +57,7 @@ const getAuthEvents = asyncHandler(async (req, res) => {
   const { user_id, event_type, attempted_identifier, from, to } = req.query;
 
   if (user_id) {
-    values.push(parseId(user_id, 'user_id'));
+    values.push(parseUuid(user_id, 'user_id'));
     conditions.push(`user_id = $${values.length}`);
   }
   if (event_type) {

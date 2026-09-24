@@ -21,8 +21,8 @@ beforeEach(async () => {
   ctx = await resetAndSeed();
 });
 
-const asAda       = () => bearerFor({ id: ctx.userIds.ada,       role: 'user' });
-const asGrace     = () => bearerFor({ id: ctx.userIds.grace,     role: 'user' });
+const asAda = () => bearerFor({ id: ctx.userIds.ada, role: 'user' });
+const asGrace = () => bearerFor({ id: ctx.userIds.grace, role: 'user' });
 const asSiteAdmin = () => bearerFor({ id: ctx.userIds.siteadmin, role: 'admin' });
 
 async function readUser(id) {

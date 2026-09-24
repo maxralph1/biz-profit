@@ -4,6 +4,7 @@ import ApiError from '../../../utils/errors/ApiError.js';
 import { BCRYPT_ROUNDS } from '../../../utils/constants.js';
 import dbPool from '../../../config/db/dbPool.js';
 import withTransaction from '../../../utils/db/withTransaction.js';
+import parseUuid from '../../../utils/http/parseUuid.js';
 import writeAudit from '../../../utils/audit/writeAudit.js';
 import resolvePagination from '../../../utils/pagination/resolvePagination.js';
 import paginateResponse from '../../../utils/pagination/paginateResponse.js';
@@ -99,10 +100,7 @@ const createUser = asyncHandler(async (req, res) => {
 * ---------------------------------------------------
 */
 const getUser = asyncHandler(async (req, res) => {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id < 1) {
-    throw new ApiError(400, 'Invalid user id');
-  }
+  const id = parseUuid(req.params.id, 'user id');
 
   const { rows } = await dbPool.query(
     `SELECT ${USER_PUBLIC_COLUMNS}
@@ -122,10 +120,7 @@ const getUser = asyncHandler(async (req, res) => {
 * ---------------------------------------------------
 */
 const updateUser = asyncHandler(async (req, res) => {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id < 1) {
-    throw new ApiError(400, 'Invalid user id');
-  }
+  const id = parseUuid(req.params.id, 'user id');
 
   const data = await updateUserRequest(req.body);
 
@@ -212,10 +207,7 @@ const updateUser = asyncHandler(async (req, res) => {
 * ---------------------------------------------------
 */
 const deleteUser = asyncHandler(async (req, res) => {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id < 1) {
-    throw new ApiError(400, 'Invalid user id');
-  }
+  const id = parseUuid(req.params.id, 'user id');
 
   if (req.user.id === id) {
     throw new ApiError(403, 'You cannot delete your own account.');

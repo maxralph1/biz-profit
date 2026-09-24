@@ -39,14 +39,14 @@ export default MonthlyTotal;
 */
 
 const MonthlyTotal = `
-  id SERIAL PRIMARY KEY,
-  business_id INT NOT NULL,
-  created_by INT NOT NULL,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL, 
+  created_by UUID NOT NULL,
   narration TEXT NOT NULL,
   amount BIGINT NOT NULL,
   currency CHAR(3) NOT NULL,
   approved BOOLEAN NOT NULL DEFAULT FALSE,
-  approver_id INT NULL,
+  approver_id UUID NULL, 
   month_in_review DATE NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,

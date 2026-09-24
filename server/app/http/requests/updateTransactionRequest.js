@@ -47,7 +47,7 @@ export default function updateTransactionRequest(reqBody) {
       regex: CURRENCY_RE,
       message: 'currency must be a 3-letter uppercase ISO 4217 code',
     },
-    transaction_type_id: { type: 'integer', minValue: 1 },
+    transaction_type_id: { type: 'uuid' },
     transaction_date: { type: 'string' },
     approved: { type: 'boolean' },
   });

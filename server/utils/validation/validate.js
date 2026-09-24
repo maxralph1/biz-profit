@@ -1,6 +1,8 @@
 import ApiError from '../errors/ApiError.js';
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; 
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * validate(input, schema)
@@ -70,6 +72,14 @@ export default function validate(input, schema) {
         continue;
       }
       output[field] = n;
+      continue;
+    }
+    if (rules.type === 'uuid') {
+      if (typeof value !== 'string' || !UUID_RE.test(value)) {
+        errors[field] = `${field} must be a valid UUID`;
+        continue;
+      }
+      output[field] = value.toLowerCase();
       continue;
     }
     if (rules.type === 'email' && !EMAIL_RE.test(value)) {
